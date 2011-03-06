@@ -94,6 +94,7 @@ class PluginAgent(object):
         """
         Called by Rhythmbox when the plugin is activated
         """
+        print ">> Squeezebox activated"
         self.active=True
         self.shell = shell
         self.sp = shell.get_player()
@@ -108,8 +109,6 @@ class PluginAgent(object):
         ## Distribute the vital RB objects around
         Bus.publish("__pluging__", "rb_shell", self.shell, self.db, self.sp)
         
-        self.type_song=self.db.entry_type_get_by_name("song")
-        
         self._reconnect()
         self.init_toolbar()
         
@@ -117,6 +116,7 @@ class PluginAgent(object):
         """
         Called by RB when the plugin is about to get deactivated
         """
+        print ">> Squeezebox de-activated"
         self.remove_toolbar()
             
         for id in self.spcb:
@@ -142,8 +142,6 @@ class PluginAgent(object):
             print "! Unable to play/pause"
 
     def on_playing_song_changed(self, player, entry, *_):
-        """
-        """
         if not self.activated:
             return
         
@@ -174,8 +172,6 @@ class PluginAgent(object):
     def h_tick(self, ticks_per_second, 
                second_marker, min_marker, hour_marker, day_marker,
                sec_count, min_count, hour_count, day_count):
-        """        
-        """
         if (min_count % self.MOUNTS_REFRESH_INTERVAL):
             self.refresh_mounts()
 
@@ -192,15 +188,23 @@ class PluginAgent(object):
     def refresh_mounts(self):
         self.mounts=filtered_mounts()
 
-    def resolve_path(self, path):
+    def _decode(self, path):
         try:
-            p=urllib.unquote(path).decode("utf8")
+            #p=urllib.unquote(path).decode("utf8")
+            p=unicode(urllib.unquote(path))
+            #p=path.decode("utf8")
         except Exception,_e:
             print "! unable to decode 'file location' for entry: %s" % path
             return None
+        return p        
 
+    def resolve_path(self, path):
+
+        if not path.startswith("smb:"):
+            return path
+        
         ### clean up the "smb:" prefixes
-        p=p.replace("smb:", "")
+        p=path.replace("smb:", "")
         
         #print "> path 1: %s" % p
 
@@ -224,4 +228,4 @@ class PluginAgent(object):
             ## as stupid as it is...
             p=p.replace(oldprefix.lower(), newprefix)
 
-        return p
+        return "file://"+p

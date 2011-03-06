@@ -13,6 +13,17 @@ There are 3 methods:
 Note that option #3 isn't preferred as one might get an "unstable" snapshot. 
 
 
+Usage
+=====
+
+When the plugin is enabled, a "gnome network icon" (I didn't find the way to use a custom image at this time, sorry) will be displayed in Rhythmbox toolbar at the top.
+Each press of the button will toggle between "activated" and "deactivated" state of the Squeezebox control.
+
+In the "activated" mode, Rhythmbox's current volume setting will be saved and muted.  Each track played will be relayed to the first Squeezebox found on the network.
+
+In the "deactivated" mode, the volume setting will be restored.  
+
+
 History
 =======
 
