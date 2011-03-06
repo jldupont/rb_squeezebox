@@ -12,8 +12,8 @@
 """
 DEV_MODE=True
 PLUGIN_NAME="squeezebox"
-TICK_FREQ=4
-TIME_BASE=250
+TICK_FREQ=1
+TIME_BASE=1000
 MSWITCH_OBSERVE_MODE=True
 
 import os, sys
@@ -76,7 +76,6 @@ class SqueezeboxPlugin (rb.Plugin):
 
 
 def tick_publisher(*p):
-    print "tick...."
     Bus.publish("__main__", "__tick__", *p)
 
 _tg=TickGenerator(1000/TIME_BASE, tick_publisher)

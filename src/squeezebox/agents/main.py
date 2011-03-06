@@ -29,7 +29,7 @@ class PluginAgent(object):
         self.activated=False
         self.volume=0
         
-        Bus.subscribe(self.BUSNAME, "__tick__", self.h_tick)
+        Bus.subscribe(self, "__tick__", self.h_tick)
 
     def init_toolbar(self):
         self.action = ('ActivateSqueezeboxMode','skype', _('SqueezeboxTools'),
@@ -49,8 +49,6 @@ class PluginAgent(object):
 
         
     def activate_button_press(self, action):
-        """
-        """
         #print "!!! Mode activated: %s" % action
         self.activated = not self.activated
         if self.activated:
