@@ -4,7 +4,7 @@
     @author: jldupont
 """
 import os
-import gtk, gtk.gdk, urllib
+import gtk, urllib
 
 from squeezebox.system.mbus import Bus
 from squeezebox.helpers.server import Server
@@ -34,19 +34,29 @@ class PluginAgent(object):
         Bus.subscribe(self, "__tick__", self.h_tick)
 
     def init_toolbar(self):
-        path=os.path.join(self.this_dir, os.path.sep, "squeezecenter.gif" )
-        pixbuf = gtk.gdk.pixbuf_new_from_file(path)
-        image=gtk.Image()
-        image.set_from_pixbuf(pixbuf)
+        """
+        TODO: Not able yet to force a custom image for the ToggleAction...
+        """
+        #print "this_dir: %s" % self.this_dir
+        #path=os.path.join(self.this_dir, "squeezecenter.gif" )
+        #print path
+        #pixbuf = gtk.gdk.pixbuf_new_from_file(path)
+        #image=gtk.Image()
+        #image.set_from_pixbuf(pixbuf)
         
-        self.action = ('ActivateSqueezeboxMode',image, _('SqueezeboxTools'),
+        self.action = ('ActivateSqueezeboxMode',"gtk-network", _('SqueezeboxTools'),
                         None, _('Activate Squeezebox mode'),
                         self.activate_button_press, True)
         self.action_group = gtk.ActionGroup('SqueezeboxPluginActions')
         self.action_group.add_toggle_actions([self.action])
+        #action=self.action_group.get_action("ActivateSqueezeboxMode")
+        #print dir(action)
+        #action.do_add_child(image)
+        
         uim = self.shell.get_ui_manager()
         uim.insert_action_group (self.action_group, 0)
         self.ui_id = uim.add_ui_from_string(context_ui)
+        #self.ui_id.insert_item("Text", "Tooltip", "Private", image, None, None, -1)
         uim.ensure_update()
         
     def remove_toolbar(self):
@@ -116,6 +126,9 @@ class PluginAgent(object):
     ## ================================================  rb signal handlers
 
     def on_playing_changed(self, player, playing, *_):
+        if not self.activated:
+            return
+        
         if self.player is None:
             self._reconnect()
             
@@ -131,6 +144,9 @@ class PluginAgent(object):
     def on_playing_song_changed(self, player, entry, *_):
         """
         """
+        if not self.activated:
+            return
+        
         if entry is None:
             return
         
@@ -160,7 +176,6 @@ class PluginAgent(object):
                sec_count, min_count, hour_count, day_count):
         """        
         """
-        print "tick!"
         if (min_count % self.MOUNTS_REFRESH_INTERVAL):
             self.refresh_mounts()
 
