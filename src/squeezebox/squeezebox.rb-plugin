@@ -1,0 +1,9 @@
+[RB Plugin]
+Loader=python
+Module=squeezebox
+IAge=1
+Name=Squeezebox
+Description=This plugin exports controls Squeezebox 
+Authors=Jean-Lou Dupont <jl@jldupont.com>
+Copyright=Copyright © 2010 Jean-Lou Dupont
+Website=http://www.systemical.com/
