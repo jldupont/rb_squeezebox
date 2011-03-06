@@ -3,7 +3,8 @@
 
     @author: jldupont
 """
-import gtk, urllib
+import os
+import gtk, gtk.gdk, urllib
 
 from squeezebox.system.mbus import Bus
 from squeezebox.helpers.server import Server
@@ -28,11 +29,17 @@ class PluginAgent(object):
         self.spcb=None
         self.activated=False
         self.volume=0
+        self.this_dir=os.path.dirname(__file__)
         
         Bus.subscribe(self, "__tick__", self.h_tick)
 
     def init_toolbar(self):
-        self.action = ('ActivateSqueezeboxMode','skype', _('SqueezeboxTools'),
+        path=os.path.join(self.this_dir, os.path.sep, "squeezecenter.gif" )
+        pixbuf = gtk.gdk.pixbuf_new_from_file(path)
+        image=gtk.Image()
+        image.set_from_pixbuf(pixbuf)
+        
+        self.action = ('ActivateSqueezeboxMode',image, _('SqueezeboxTools'),
                         None, _('Activate Squeezebox mode'),
                         self.activate_button_press, True)
         self.action_group = gtk.ActionGroup('SqueezeboxPluginActions')
