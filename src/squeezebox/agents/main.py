@@ -2,6 +2,9 @@
     Created on 2011-03-06
 
     @author: jldupont
+    
+    TODO Better syncing required: when pausing on SB, the time-tracker
+         on RB side isn't really good
 """
 import os
 import gio, gtk, urllib
@@ -267,7 +270,7 @@ class PluginAgent(object):
         try:
             sb_tm=self.player.get_time_elapsed()
             self.sp.set_playing_time(int(sb_tm))
-            print "* On SB Change: time marker: %s" % sb_tm
+            print "* On SB change: time marker: %s" % sb_tm
         except Exception, e:
             print "! Unable to seek RB to SB's time marker (%s)... %s" % (sb_tm, e)
     
