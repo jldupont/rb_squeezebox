@@ -4,7 +4,7 @@
     @author: jldupont
 """
 import os
-import gtk, urllib
+import gio, gtk, urllib
 
 from squeezebox.system.mbus import Bus
 from squeezebox.helpers.server import Server
@@ -25,6 +25,8 @@ class PluginAgent(object):
     BUSNAME="__main__"
     MOUNTS_REFRESH_INTERVAL=2 #minutes
     
+    ADJUST_INTERVAL=5 ##seconds
+    
     def __init__ (self):
         self.spcb=None
         self.activated=False
@@ -33,25 +35,29 @@ class PluginAgent(object):
         self.current_pos=0
         self.this_dir=os.path.dirname(__file__)
         
+        ## the last captured SB state
+        self.last_sb_state=None
+        
         Bus.subscribe(self, "__tick__", self.h_tick)
 
     def init_toolbar(self):
         """
         TODO: Not able yet to force a custom image for the ToggleAction...
         """
-        #print "this_dir: %s" % self.this_dir
-        #path=os.path.join(self.this_dir, "squeezecenter.gif" )
-        #print path
-        #pixbuf = gtk.gdk.pixbuf_new_from_file(path)
-        #image=gtk.Image()
-        #image.set_from_pixbuf(pixbuf)
-        
+        """        
         self.action = ('ActivateSqueezeboxMode',"gtk-network", _('SqueezeboxTools'),
                         None, _('Activate Squeezebox mode'),
                         self.activate_button_press, True)
+        """
+        self.action = ('ActivateSqueezeboxMode',None, _('SqueezeboxTools'),
+                None, _('Activate Squeezebox mode'),
+                self.activate_button_press, True)
+
         self.action_group = gtk.ActionGroup('SqueezeboxPluginActions')
         self.action_group.add_toggle_actions([self.action])
-        #action=self.action_group.get_action("ActivateSqueezeboxMode")
+        action=self.action_group.get_action("ActivateSqueezeboxMode")
+        action.set_gicon(self.get_icon())
+        
         #print dir(action)
         #action.do_add_child(image)
         
@@ -60,6 +66,13 @@ class PluginAgent(object):
         self.ui_id = uim.add_ui_from_string(context_ui)
         #self.ui_id.insert_item("Text", "Tooltip", "Private", image, None, None, -1)
         uim.ensure_update()
+        
+    def get_icon(self):
+        path=os.path.join(self.this_dir, "squeezecenter.gif" )
+        file=gio.File(path)
+        icon=gio.FileIcon(file)
+        return icon
+    
         
     def remove_toolbar(self):
         uim = self.shell.get_ui_manager()
@@ -124,7 +137,11 @@ class PluginAgent(object):
             
         for id in self.spcb:
             self.sp.disconnect(id)
-        
+            
+        self._maybe_reconnect()
+                
+        try:      self.player.pause()
+        except:   pass
 
     ## ================================================  rb signal handlers
 
@@ -140,8 +157,13 @@ class PluginAgent(object):
             return
         if not self.playing:
             return
-        if self.player is None:
-            self._reconnect()
+        self._maybe_reconnect()
+                    
+        ## adjust based on remote SB
+        ##  no need to seek if SB is paused/stopped
+        if (pos_seconds % self.ADJUST_INTERVAL):
+            if self.adjustBasedOnSB()=="pause":
+                return
             
         if pos_seconds != self.current_pos+1:
             print ">> seeking to: %s" % pos_seconds
@@ -153,12 +175,15 @@ class PluginAgent(object):
         self.current_pos=pos_seconds
 
     def on_playing_changed(self, player, playing, *_):
+        """
+        Easy condition to deal with since we consider RB
+        to be the 'master' of the play state
+        """
         if not self.activated:
             return
         
-        if self.player is None:
-            self._reconnect()
-            
+        self._maybe_reconnect()
+                    
         #print "playing: %s" % playing
         self.playing=playing
         try:
@@ -170,6 +195,17 @@ class PluginAgent(object):
             print "! Unable to play/pause"
 
     def on_playing_song_changed(self, player, entry, *_):
+        """
+        We also need to check if the Squeezebox was paused/stopped
+        through other means during playback: we need to reflect 
+        this state here back on RB.
+        
+        The tough part:  the 2 aren't perfectly synchronized so it is
+        possible that the SB finishes playing the current track before
+        RB and vice-versa.  In this case, we need to check the difference
+        between the 2 'time markers' in order to assess if the SB was
+        paused/stopped before the end of the current track.
+        """
         if not self.activated:
             return
         
@@ -177,6 +213,10 @@ class PluginAgent(object):
             return
         
         self.current_pos=0
+        
+        mode=self.adjustBasedOnSB()
+        if mode=="pause":
+            return
         
         td=EntryHelper.track_details2(self.db, entry)
 
@@ -189,21 +229,57 @@ class PluginAgent(object):
             
         print "** resolved path: %s" % path
         
-        if self.player is None:
-            self._reconnect()
+        self._maybe_reconnect()
         try:
             self.player.playlist_play(path)
         except:
             print "! Unable to set playing path to: %s" % path
 
 
-    ## ================================================ message handlers
+    ## ================================================ helpers
+    def on_sb_change(self, mode):
+        """
+        Triggered when the state of remote SqueezeBox changes
+        
+        Adjust time tracker based on SB
+        """
+        
     
-    def h_tick(self, ticks_per_second, 
-               second_marker, min_marker, hour_marker, day_marker,
-               sec_count, min_count, hour_count, day_count):
-        if (min_count % self.MOUNTS_REFRESH_INTERVAL):
-            self.refresh_mounts()
+    
+    def adjustBasedOnSB(self):
+        """
+        Adjust the state of RB based on the state
+        of the remote SqueezeBox
+
+        @return None     if there was no change since last poll        
+        @return "pause"  if the remote SB is paused/stopped
+        #return "play"   if the play was resumed
+        """
+        if self.player is None:
+            self._reconnect()
+        try:
+            mode=self.player.get_mode().lower()
+        except:
+            mode=None
+        
+        ## no change since last time
+        if mode == self.last_sb_state:
+            return None
+        
+        self.last_sb_state=mode
+        
+        if mode=="pause" or mode=="stop":
+            self.sp.pause()
+            return "pause"
+
+        self.sp.play()
+                
+        return "play"
+        
+            
+    def _maybe_reconnect(self):
+        if self.player is None:
+            self._reconnect()
 
     def _reconnect(self):
         try:
@@ -214,6 +290,30 @@ class PluginAgent(object):
             self.player=self.players[0]
         except:
             self.player=None
+        
+    
+    ## ================================================ message handlers    
+    def h_tick(self, ticks_per_second, 
+               second_marker, min_marker, hour_marker, day_marker,
+               sec_count, min_count, hour_count, day_count):
+        """
+        - Check mounts at regular interval
+        - Sync with SqueezeBox state regularly
+        """
+        if (min_count % self.MOUNTS_REFRESH_INTERVAL):
+            self.refresh_mounts()
+        
+        self._maybe_reconnect()
+        
+        if (sec_count % self.ADJUST_INTERVAL!=0):
+            return
+            
+        mode=self.player.get_mode()
+        if mode!=self.last_sb_state:
+            self.on_sb_change(mode)
+            self.last_sb_state=mode
+        
+    ## =======================================================================  MOUNT related
         
     def refresh_mounts(self):
         self.mounts=filtered_mounts()
