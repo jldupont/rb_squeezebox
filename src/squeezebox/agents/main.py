@@ -35,6 +35,8 @@ class PluginAgent(object):
         self.current_pos=0
         self.this_dir=os.path.dirname(__file__)
         
+        self.last_seek=None
+        
         ## the last captured SB state
         self.last_sb_state=None
         
@@ -154,11 +156,19 @@ class PluginAgent(object):
         Since this signal is sent on every second, we need to
         implement a filter to determine when the user is actually
         seeking into the track.
+        
+        NOTE: RB sends more than one of this signal when starting
+              a new track playback... debounce.
         """
         if not self.activated:
             return
         if not self.playing:
             return
+        
+        ## debounce...
+        if self.last_seek==pos_seconds:
+            return
+        self.last_seek=pos_seconds
         
         self._maybe_reconnect()
         
@@ -255,48 +265,17 @@ class PluginAgent(object):
         self.skip_time_adjust=True
         
         try:
-            sb_tm=self.player.get_elapsed_time()
-            self.sp.set_playing_time(sb_tm)
+            sb_tm=self.player.get_time_elapsed()
+            self.sp.set_playing_time(int(sb_tm))
             print "* On SB Change: time marker: %s" % sb_tm
-        except:
-            print "! Unable to seek RB to SB's time marker"
+        except Exception, e:
+            print "! Unable to seek RB to SB's time marker (%s)... %s" % (sb_tm, e)
     
         if mode=="pause":
             self.sp.pause()
         else:
             self.sp.play()
     
-    def adjustBasedOnSB(self):
-        """
-        Adjust the state of RB based on the state
-        of the remote SqueezeBox
-
-        @return None     if there was no change since last poll        
-        @return "pause"  if the remote SB is paused/stopped
-        #return "play"   if the play was resumed
-        """
-        if self.player is None:
-            self._reconnect()
-        try:
-            mode=self.player.get_mode().lower()
-        except:
-            mode=None
-        
-        ## no change since last time
-        if mode == self.last_sb_state:
-            return None
-        
-        self.last_sb_state=mode
-        
-        if mode=="pause" or mode=="stop":
-            self.sp.pause()
-            return "pause"
-
-        self.sp.play()
-                
-        return "play"
-        
-            
     def _maybe_reconnect(self):
         if self.player is None:
             self._reconnect()
