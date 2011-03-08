@@ -38,6 +38,8 @@ class PluginAgent(object):
         ## the last captured SB state
         self.last_sb_state=None
         
+        self.skip_time_adjust=False
+        
         Bus.subscribe(self, "__tick__", self.h_tick)
 
     def init_toolbar(self):
@@ -157,14 +159,15 @@ class PluginAgent(object):
             return
         if not self.playing:
             return
+        
         self._maybe_reconnect()
-                    
-        ## adjust based on remote SB
-        ##  no need to seek if SB is paused/stopped
-        if (pos_seconds % self.ADJUST_INTERVAL):
-            if self.adjustBasedOnSB()=="pause":
-                return
-            
+        
+        ## skip one time adjustment upon re-sync
+        ## of SB <--> RB            
+        if self.skip_time_adjust:
+            self.skip_time_adjust=False
+            return
+        
         if pos_seconds != self.current_pos+1:
             print ">> seeking to: %s" % pos_seconds
             try:
@@ -214,10 +217,6 @@ class PluginAgent(object):
         
         self.current_pos=0
         
-        mode=self.adjustBasedOnSB()
-        if mode=="pause":
-            return
-        
         td=EntryHelper.track_details2(self.db, entry)
 
         print "> resolving path: %s" % td["path"]
@@ -242,9 +241,30 @@ class PluginAgent(object):
         Triggered when the state of remote SqueezeBox changes
         
         Adjust time tracker based on SB
+        
+        SB paused:  adjust RB time marker,  pause RB
+        SB play:    adjust RB time marker,  play  RB
         """
         
+        ## if RB is already playing, no big deal...
+        if mode=="play":
+            if self.sp.get_playing():
+                return
+        
+        self._maybe_reconnect()
+        self.skip_time_adjust=True
+        
+        try:
+            sb_tm=self.player.get_elapsed_time()
+            self.sp.set_playing_time(sb_tm)
+            print "* On SB Change: time marker: %s" % sb_tm
+        except:
+            print "! Unable to seek RB to SB's time marker"
     
+        if mode=="pause":
+            self.sp.pause()
+        else:
+            self.sp.play()
     
     def adjustBasedOnSB(self):
         """
@@ -303,13 +323,17 @@ class PluginAgent(object):
         if (min_count % self.MOUNTS_REFRESH_INTERVAL):
             self.refresh_mounts()
         
+        if not self.activated:
+            return
+        
         self._maybe_reconnect()
         
         if (sec_count % self.ADJUST_INTERVAL!=0):
             return
             
-        mode=self.player.get_mode()
+        mode=self.player.get_mode().lower()
         if mode!=self.last_sb_state:
+            print "* Detected SB change state: %s" % mode
             self.on_sb_change(mode)
             self.last_sb_state=mode
         
