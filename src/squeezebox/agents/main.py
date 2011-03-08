@@ -29,6 +29,8 @@ class PluginAgent(object):
         self.spcb=None
         self.activated=False
         self.volume=0
+        self.playing=False
+        self.current_pos=0
         self.this_dir=os.path.dirname(__file__)
         
         Bus.subscribe(self, "__tick__", self.h_tick)
@@ -104,6 +106,7 @@ class PluginAgent(object):
         self.spcb = (
                      self.sp.connect("playing-changed",        self.on_playing_changed),
                      self.sp.connect("playing-song-changed",   self.on_playing_song_changed),
+                     self.sp.connect("elapsed-changed",         self.on_elapsed_changed),
                      )
         
         ## Distribute the vital RB objects around
@@ -125,6 +128,30 @@ class PluginAgent(object):
 
     ## ================================================  rb signal handlers
 
+    def on_elapsed_changed(self, pl, pos_seconds, *_):
+        """
+        When the use 'seeks' during track playback
+        
+        Since this signal is sent on every second, we need to
+        implement a filter to determine when the user is actually
+        seeking into the track.
+        """
+        if not self.activated:
+            return
+        if not self.playing:
+            return
+        if self.player is None:
+            self._reconnect()
+            
+        if pos_seconds != self.current_pos+1:
+            print ">> seeking to: %s" % pos_seconds
+            try:
+                self.player.seek_to(pos_seconds)
+            except:
+                print "! Unable to seek to :%s" % pos_seconds
+
+        self.current_pos=pos_seconds
+
     def on_playing_changed(self, player, playing, *_):
         if not self.activated:
             return
@@ -133,6 +160,7 @@ class PluginAgent(object):
             self._reconnect()
             
         #print "playing: %s" % playing
+        self.playing=playing
         try:
             if playing:
                 self.player.play()
@@ -147,6 +175,8 @@ class PluginAgent(object):
         
         if entry is None:
             return
+        
+        self.current_pos=0
         
         td=EntryHelper.track_details2(self.db, entry)
 

@@ -28,3 +28,5 @@ History
 =======
 
 0.1 : initial release
+
+0.2 : added track seek feature i.e. when the user drags the time tracking cursor
