@@ -48,14 +48,6 @@ class PluginAgent(object):
         Bus.subscribe(self, "__tick__", self.h_tick)
 
     def init_toolbar(self):
-        """
-        TODO: Not able yet to force a custom image for the ToggleAction...
-        """
-        """        
-        self.action = ('ActivateSqueezeboxMode',"gtk-network", _('SqueezeboxTools'),
-                        None, _('Activate Squeezebox mode'),
-                        self.activate_button_press, True)
-        """
         self.action = ('ActivateSqueezeboxMode',None, _('SqueezeboxTools'),
                 None, _('Activate Squeezebox mode'),
                 self.activate_button_press, True)
@@ -302,7 +294,7 @@ class PluginAgent(object):
         - Check mounts at regular interval
         - Sync with SqueezeBox state regularly
         """
-        if (min_count % self.MOUNTS_REFRESH_INTERVAL):
+        if (min_count % self.MOUNTS_REFRESH_INTERVAL==0):
             self.refresh_mounts()
         
         if not self.activated:
@@ -310,7 +302,7 @@ class PluginAgent(object):
         
         self._maybe_reconnect()
         
-        if (sec_count % self.ADJUST_INTERVAL!=0):
+        if (sec_count % self.ADJUST_INTERVAL==0):
             return
             
         mode=self.player.get_mode().lower()
