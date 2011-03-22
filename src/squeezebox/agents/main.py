@@ -131,6 +131,7 @@ class PluginAgent(object):
         """
         Called by RB when the plugin is about to get deactivated
         """
+        self.active=False
         print ">> Squeezebox de-activated"
         self.remove_toolbar()
             
@@ -266,10 +267,13 @@ class PluginAgent(object):
         except Exception, e:
             print "! Unable to seek RB to SB's time marker (%s)... %s" % (sb_tm, e)
     
-        if mode=="pause":
-            self.sp.pause()
-        else:
-            self.sp.play()
+        try:
+            if mode=="pause":
+                self.sp.pause()
+            else:
+                self.sp.play()
+        except:
+            print "! Can't switch to mode(%s) right now" % mode
     
     def _maybe_reconnect(self):
         if self.player is None:
@@ -297,19 +301,21 @@ class PluginAgent(object):
         if (min_count % self.MOUNTS_REFRESH_INTERVAL==0):
             self.refresh_mounts()
         
-        if not self.activated:
+        if not self.activated or not self.active:
             return
         
         self._maybe_reconnect()
         
         if (sec_count % self.ADJUST_INTERVAL==0):
             return
-            
+        
         mode=self.player.get_mode().lower()
+        #print "> ADJUST: current(%s) last(%s)" % (mode, self.last_sb_state)
+        
         if mode!=self.last_sb_state:
             print "* Detected SB change state: %s" % mode
             self.on_sb_change(mode)
-            self.last_sb_state=mode
+        self.last_sb_state=mode
         
     ## =======================================================================  MOUNT related
         
