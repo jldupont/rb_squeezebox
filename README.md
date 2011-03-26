@@ -32,3 +32,5 @@ History
 0.2 : added track seek feature i.e. when the user drags the time tracking cursor
 
 0.4 : better handling of remote pause through Squeezebox
+
+0.6 : better reconnect procedure upon SqueezeCenter restart

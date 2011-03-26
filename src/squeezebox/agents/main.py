@@ -280,8 +280,8 @@ class PluginAgent(object):
             sb_tm=self.scc.getPos()
             self.sp.set_playing_time(int(sb_tm))
             print "* On SB change: time marker: %s" % sb_tm
-        except Exception, e:
-            print "! Unable to seek RB to SB's time marker (%s)... %s" % (sb_tm, e)
+        except Exception, _e:
+            print "! Unable to seek RB to SB's time marker... "
     
         try:
             if mode=="pause":
