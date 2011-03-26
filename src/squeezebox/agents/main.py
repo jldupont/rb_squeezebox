@@ -6,11 +6,13 @@
     TODO Better syncing required: when pausing on SB, the time-tracker
          on RB side isn't really good
 """
+__VERSION__="26-03-2011"
 import os
 import gio, gtk, urllib
 
 from squeezebox.system.mbus import Bus
 from squeezebox.helpers.server import Server
+from squeezebox.helpers.squeeze import SqueezeCenterControl
 #from squeezebox.helpers.player import Player
 from squeezebox.helpers.db import EntryHelper
 from squeezebox.system.os import filtered_mounts, lookup_mount
@@ -43,6 +45,7 @@ class PluginAgent(object):
         ## the last captured SB state
         self.last_sb_state=None
         
+        self.scc=SqueezeCenterControl()
         self.skip_time_adjust=False
         
         Bus.subscribe(self, "__tick__", self.h_tick)
@@ -93,6 +96,7 @@ class PluginAgent(object):
         
         * Mute volume but keep current setting
         """
+        print "SqueezeBox: activation, version: %s" % __VERSION__
         self.refresh_mounts()
         self.volume=self.sp.get_volume()
         self.sp.set_volume(0)
@@ -124,7 +128,7 @@ class PluginAgent(object):
         ## Distribute the vital RB objects around
         Bus.publish("__pluging__", "rb_shell", self.shell, self.db, self.sp)
         
-        self._reconnect()
+        #self._reconnect()
         self.init_toolbar()
         
     def deactivate (self, shell):
@@ -138,10 +142,13 @@ class PluginAgent(object):
         for id in self.spcb:
             self.sp.disconnect(id)
             
+        self.scc.pause()
+        """
         self._maybe_reconnect()
                 
         try:      self.player.pause()
         except:   pass
+        """
 
     ## ================================================  rb signal handlers
 
@@ -166,7 +173,7 @@ class PluginAgent(object):
             return
         self.last_seek=pos_seconds
         
-        self._maybe_reconnect()
+        #self._maybe_reconnect()
         
         ## skip one time adjustment upon re-sync
         ## of SB <--> RB            
@@ -176,11 +183,14 @@ class PluginAgent(object):
         
         if pos_seconds != self.current_pos+1:
             print ">> seeking to: %s" % pos_seconds
+            self.scc.seekTo(pos_seconds)
+            """
             try:
+                
                 self.player.seek_to(pos_seconds)
             except:
                 print "! Unable to seek to :%s" % pos_seconds
-
+            """
         self.current_pos=pos_seconds
 
     def on_playing_changed(self, player, playing, *_):
@@ -191,10 +201,12 @@ class PluginAgent(object):
         if not self.activated:
             return
         
-        self._maybe_reconnect()
+        #self._maybe_reconnect()
                     
         #print "playing: %s" % playing
         self.playing=playing
+        self.scc.setMode(playing)
+        """
         try:
             if playing:
                 self.player.play()
@@ -202,6 +214,7 @@ class PluginAgent(object):
                 self.player.pause()
         except:
             print "! Unable to play/pause"
+        """
 
     def on_playing_song_changed(self, player, entry, *_):
         """
@@ -233,13 +246,15 @@ class PluginAgent(object):
             return
             
         print "** resolved path: %s" % path
+        self.scc.setPlayPath(path)
         
-        self._maybe_reconnect()
+        #self._maybe_reconnect()
+        """
         try:
             self.player.playlist_play(path)
         except:
             print "! Unable to set playing path to: %s" % path
-
+        """
 
     ## ================================================ helpers
     def on_sb_change(self, mode):
@@ -257,11 +272,12 @@ class PluginAgent(object):
             if self.sp.get_playing():
                 return
         
-        self._maybe_reconnect()
+        #self._maybe_reconnect()
         self.skip_time_adjust=True
         
         try:
-            sb_tm=self.player.get_time_elapsed()
+            #sb_tm=self.player.get_time_elapsed()
+            sb_tm=self.scc.getPos()
             self.sp.set_playing_time(int(sb_tm))
             print "* On SB change: time marker: %s" % sb_tm
         except Exception, e:
@@ -273,22 +289,8 @@ class PluginAgent(object):
             else:
                 self.sp.play()
         except:
-            print "! Can't switch to mode(%s) right now" % mode
+            print "! RB issue: Can't switch to mode(%s) right now" % mode
     
-    def _maybe_reconnect(self):
-        if self.player is None:
-            self._reconnect()
-
-    def _reconnect(self):
-        try:
-            self.sc = Server(hostname="127.0.0.1", port=9090)
-            self.sc.connect()
-            
-            self.players = self.sc.get_players()
-            self.player=self.players[0]
-        except:
-            self.player=None
-        
     
     ## ================================================ message handlers    
     def h_tick(self, ticks_per_second, 
@@ -304,12 +306,13 @@ class PluginAgent(object):
         if not self.activated or not self.active:
             return
         
-        self._maybe_reconnect()
+        #self._maybe_reconnect()
         
         if (sec_count % self.ADJUST_INTERVAL==0):
             return
         
-        mode=self.player.get_mode().lower()
+        mode=self.scc.getMode()
+        
         #print "> ADJUST: current(%s) last(%s)" % (mode, self.last_sb_state)
         
         if mode!=self.last_sb_state:
